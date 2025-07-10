@@ -121,12 +121,18 @@ if api_key:
         )
         st.stop()
 
-ch_host = 'localhost'
-ch_port = 8123
-ch_username = 'user'
-ch_password = 123
-ch_database = 'default'
-ch_table = 'teste'
+from dotenv import load_dotenv
+import os
+
+load_dotenv()  # Carrega o .env da raiz do projeto
+
+ch_host = os.getenv("CH_HOST")
+ch_port = int(os.getenv("CH_PORT", 8123))  # forneça default se quiser
+ch_username = os.getenv("CH_USERNAME")
+ch_password = os.getenv("CH_PASSWORD")
+ch_database = os.getenv("CH_DATABASE")
+ch_table = os.getenv("CH_TABLE")
+
 
 
 # --- GLOBAL DEFINITIONS ---

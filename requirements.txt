@@ -264,3 +264,4 @@ zstandard==0.23.0
 pyasn1-modules>=0.2.1
 pyasn1<0.7.0
 scipy>=1.6
+python-dotenv
