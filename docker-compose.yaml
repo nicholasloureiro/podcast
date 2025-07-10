@@ -1,0 +1,40 @@
+
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.3.5.42-alpine  # tag estável de julho/2025 :contentReference[oaicite:0]{index=0}
+    container_name: clickhouse
+    ports:
+      - "8123:8123"      # HTTP
+      - "9000:9000"      # Native
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse            # dados “de verdade”
+      - ./clickhouse-init:/docker-entrypoint-initdb.d  # scripts de seed
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: unimed-app
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    ports:
+      - "8501:8501"
+    environment:
+      #  -- o código já espera estas variáveis --
+      CH_HOST: clickhouse
+      CH_PORT: 8123
+      CH_USERNAME: user
+      CH_PASSWORD: 123        # defina se precisar
+      CH_DATABASE: default
+      OPENAI_API_KEY: "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"  # ou defina via secrets
+
+volumes:
+  clickhouse_data:
