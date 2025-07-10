@@ -29,12 +29,12 @@ services:
       - "8501:8501"
     environment:
       #  -- o código já espera estas variáveis --
-      CH_HOST: 
-      CH_PORT: 
-      CH_USERNAME: 
-      CH_PASSWORD:         # defina se precisar
-      CH_DATABASE: 
-        # ou defina via secrets
+      CH_HOST: localhost
+      CH_PORT: 8123
+      CH_USERNAME: user
+      CH_PASSWORD: 123        # defina se precisar
+      CH_DATABASE: default
+      OPENAI_API_KEY: "BlbkFJhY9pLKYY1kvn_-pZo_x34F8wI9EX3viQLIfPtGVKSBprLU1DCEXIv6NCphs5qKDmNOcNzIndsA"  # ou defina via secrets
 
 volumes:
   clickhouse_data:
