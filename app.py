@@ -6,6 +6,8 @@ import clickhouse_connect
 import collections 
 import io 
 from datetime import datetime
+from typing import List
+import numpy as np
 
 from langchain_community.chat_message_histories import StreamlitChatMessageHistory
 from langchain_openai import ChatOpenAI
@@ -269,55 +271,73 @@ def calculate_top_altered_exams(dataframe, status_column_list, markers):
 
 # --- NEW ENTERPRISE ANALYSIS FUNCTIONS ---
 @st.cache_data
-def calculate_enterprise_risk_analysis(dataframe, status_column_list, markers):
-    """Calculate enterprise-level risk analysis"""
+def calculate_enterprise_risk_analysis(dataframe: pd.DataFrame, status_column_list: List[str], markers: List[str]) -> pd.DataFrame:
+    """
+    Ultra-optimized version using pure pandas operations
+    Best for datasets with >100k rows
+    """
     if dataframe.empty or not status_column_list or "contratonome" not in dataframe.columns:
         return pd.DataFrame()
     
-    enterprise_stats = []
+    df = dataframe[dataframe["contratonome"].notna()].copy()
+    if df.empty:
+        return pd.DataFrame()
     
-    for empresa in dataframe["contratonome"].dropna().unique():
-        empresa_df = dataframe[dataframe["contratonome"] == empresa]
-        total_funcionarios = len(empresa_df)
-        
-        if total_funcionarios == 0:
-            continue
-            
-        funcionarios_com_alteracao = empresa_df["paciente_com_alteracao"].sum() if "paciente_com_alteracao" in empresa_df.columns else 0
-        taxa_alteracao = (funcionarios_com_alteracao / total_funcionarios * 100) if total_funcionarios > 0 else 0
-        
-        # Calculate average altered exams per employee
-        media_alteracoes = empresa_df["qtde_exames_alterados"].mean() if "qtde_exames_alterados" in empresa_df.columns else 0
-        
-        # Calculate most problematic exam for this enterprise
-        exame_problema = ""
-        max_alteracoes = 0
-        for col in status_column_list:
-            if col in empresa_df.columns:
-                alteracoes = empresa_df[col].isin(markers).sum()
-                if alteracoes > max_alteracoes:
-                    max_alteracoes = alteracoes
-                    exame_problema = col.replace("_status", "").replace("_", " ").title()
-        
-        # Risk level classification
-        if taxa_alteracao >= 60:
-            nivel_risco = "Alto"
-        elif taxa_alteracao >= 30:
-            nivel_risco = "Médio"
-        else:
-            nivel_risco = "Baixo"
-            
-        enterprise_stats.append({
-            "Empresa": empresa,
-            "Total Funcionários": total_funcionarios,
-            "Funcionários com Alteração": funcionarios_com_alteracao,
-            "Taxa de Alteração (%)": round(taxa_alteracao, 1),
-            "Média Exames Alterados": round(media_alteracoes, 2),
-            "Exame Mais Problemático": exame_problema if exame_problema else "N/A",
-            "Nível de Risco": nivel_risco
-        })
+    markers_set = set(markers)
+    existing_status_cols = [col for col in status_column_list if col in df.columns]
     
-    return pd.DataFrame(enterprise_stats).sort_values("Taxa de Alteração (%)", ascending=False)
+    # Create alteration matrix for all status columns at once
+    alteration_matrix = pd.DataFrame(index=df.index)
+    for col in existing_status_cols:
+        alteration_matrix[col] = df[col].isin(markers_set)
+    
+    # Add empresa column for grouping
+    alteration_matrix["contratonome"] = df["contratonome"]
+    
+    # Calculate most problematic exam per company (vectorized)
+    alteration_sums = alteration_matrix.groupby("contratonome")[existing_status_cols].sum()
+    exame_problema_series = alteration_sums.idxmax(axis=1).apply(
+        lambda x: x.replace("_status", "").replace("_", " ").title() if pd.notna(x) else "N/A"
+    )
+    
+    # Main aggregation
+    agg_dict = {}
+    
+    # Basic counts
+    empresa_stats = df.groupby("contratonome").agg({
+        "contratonome": "size"  # Total funcionários
+    }).rename(columns={"contratonome": "Total Funcionários"})
+    
+    # Conditional aggregations
+    if "paciente_com_alteracao" in df.columns:
+        empresa_stats["Funcionários com Alteração"] = df.groupby("contratonome")["paciente_com_alteracao"].sum()
+    else:
+        empresa_stats["Funcionários com Alteração"] = 0
+    
+    if "qtde_exames_alterados" in df.columns:
+        empresa_stats["Média Exames Alterados"] = df.groupby("contratonome")["qtde_exames_alterados"].mean().fillna(0).round(2)
+    else:
+        empresa_stats["Média Exames Alterados"] = 0.0
+    
+    # Calculate rates
+    empresa_stats["Taxa de Alteração (%)"] = (
+        empresa_stats["Funcionários com Alteração"] / empresa_stats["Total Funcionários"] * 100
+    ).round(1)
+    
+    # Add most problematic exam
+    empresa_stats["Exame Mais Problemático"] = exame_problema_series
+    
+    # Risk classification (vectorized)
+    empresa_stats["Nível de Risco"] = pd.cut(
+        empresa_stats["Taxa de Alteração (%)"],
+        bins=[-np.inf, 30, 60, np.inf],
+        labels=["Baixo", "Médio", "Alto"],
+        right=False
+    )
+    
+    # Reset index and sort
+    result = empresa_stats.reset_index().rename(columns={"contratonome": "Empresa"})
+    return result.sort_values("Taxa de Alteração (%)", ascending=False)
 
 @st.cache_data
 def calculate_product_performance(dataframe, status_column_list, markers):
