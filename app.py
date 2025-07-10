@@ -270,75 +270,84 @@ def calculate_top_altered_exams(dataframe, status_column_list, markers):
     return pd.DataFrame(columns=["Exame", "Número de Alterações"])
 
 # --- NEW ENTERPRISE ANALYSIS FUNCTIONS ---
+import pandas as pd
+import numpy as np
+from typing import List
+
 @st.cache_data
-def calculate_enterprise_risk_analysis(dataframe: pd.DataFrame, status_column_list: List[str], markers: List[str]) -> pd.DataFrame:
+def calculate_enterprise_risk_analysis(
+    dataframe: pd.DataFrame,
+    status_column_list: List[str],
+    markers: List[str]
+) -> pd.DataFrame:
     """
-    Ultra-optimized version using pure pandas operations
-    Best for datasets with >100k rows
+    Ultra-optimized version using pure pandas operations.
+    Best for datasets with >100k rows.
     """
+
     if dataframe.empty or not status_column_list or "contratonome" not in dataframe.columns:
         return pd.DataFrame()
-    
+
+    # Remove registros sem contratonome
     df = dataframe[dataframe["contratonome"].notna()].copy()
     if df.empty:
         return pd.DataFrame()
-    
+
     markers_set = set(markers)
     existing_status_cols = [col for col in status_column_list if col in df.columns]
-    
-    # Create alteration matrix for all status columns at once
-    alteration_matrix = pd.DataFrame(index=df.index)
-    for col in existing_status_cols:
-        alteration_matrix[col] = df[col].isin(markers_set)
-    
-    # Add empresa column for grouping
-    alteration_matrix["contratonome"] = df["contratonome"]
-    
-    # Calculate most problematic exam per company (vectorized)
+
+    # Cria a matriz de alterações de forma vetorizada e eficiente
+    alteration_matrix = df[existing_status_cols].isin(markers_set)
+    alteration_matrix["contratonome"] = df["contratonome"].values
+
+    # Soma de alterações por empresa
     alteration_sums = alteration_matrix.groupby("contratonome")[existing_status_cols].sum()
+
+    # Exame mais problemático por empresa
     exame_problema_series = alteration_sums.idxmax(axis=1).apply(
         lambda x: x.replace("_status", "").replace("_", " ").title() if pd.notna(x) else "N/A"
     )
-    
-    # Main aggregation
-    agg_dict = {}
-    
-    # Basic counts
+
+    # Agrupamento básico
     empresa_stats = df.groupby("contratonome").agg({
-        "contratonome": "size"  # Total funcionários
+        "contratonome": "size"  # Total de funcionários
     }).rename(columns={"contratonome": "Total Funcionários"})
-    
-    # Conditional aggregations
+
+    # Soma de funcionários com alteração
     if "paciente_com_alteracao" in df.columns:
         empresa_stats["Funcionários com Alteração"] = df.groupby("contratonome")["paciente_com_alteracao"].sum()
     else:
         empresa_stats["Funcionários com Alteração"] = 0
-    
+
+    # Média de exames alterados
     if "qtde_exames_alterados" in df.columns:
-        empresa_stats["Média Exames Alterados"] = df.groupby("contratonome")["qtde_exames_alterados"].mean().fillna(0).round(2)
+        empresa_stats["Média Exames Alterados"] = (
+            df.groupby("contratonome")["qtde_exames_alterados"]
+            .mean().fillna(0).round(2)
+        )
     else:
         empresa_stats["Média Exames Alterados"] = 0.0
-    
-    # Calculate rates
+
+    # Cálculo da taxa de alteração
     empresa_stats["Taxa de Alteração (%)"] = (
         empresa_stats["Funcionários com Alteração"] / empresa_stats["Total Funcionários"] * 100
     ).round(1)
-    
-    # Add most problematic exam
+
+    # Exame mais problemático
     empresa_stats["Exame Mais Problemático"] = exame_problema_series
-    
-    # Risk classification (vectorized)
+
+    # Classificação de risco
     empresa_stats["Nível de Risco"] = pd.cut(
         empresa_stats["Taxa de Alteração (%)"],
         bins=[-np.inf, 30, 60, np.inf],
         labels=["Baixo", "Médio", "Alto"],
         right=False
     )
-    
-    # Reset index and sort
+
+    # Resetando index e ordenando
     result = empresa_stats.reset_index().rename(columns={"contratonome": "Empresa"})
     return result.sort_values("Taxa de Alteração (%)", ascending=False)
-
+    
 @st.cache_data
 def calculate_product_performance(dataframe, status_column_list, markers):
     """Calculate product/plan performance analysis"""
