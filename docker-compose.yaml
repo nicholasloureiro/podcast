@@ -34,7 +34,7 @@ services:
       CH_USERNAME: user
       CH_PASSWORD: 123        # defina se precisar
       CH_DATABASE: default
-      OPENAI_API_KEY: "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"  # ou defina via secrets
+      OPENAI_API_KEY: ""  # ou defina via secrets
 
 volumes:
   clickhouse_data:
