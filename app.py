@@ -1239,7 +1239,7 @@ with tab2:
                 initial_message_tab2 += f"com {data_shape[0]} exames."
             else:  # Using filtered data
                 initial_message_tab2 += f"Estou analisando {data_shape[0]} exames **filtrados** da Aba 1 "
-                initial_message_tab2 += f"com {available_tests_count} tipos de testes disponíveis."
+                #initial_message_tab2 += f"com {available_tests_count} tipos de testes disponíveis."
             
            
             
