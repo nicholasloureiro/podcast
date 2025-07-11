@@ -297,8 +297,15 @@ def calculate_enterprise_risk_analysis(
     existing_status_cols = [col for col in status_column_list if col in df.columns]
 
     # Cria a matriz de alterações de forma vetorizada e eficiente
-    alteration_matrix = df[existing_status_cols].isin(markers_set)
-    alteration_matrix["contratonome"] = df["contratonome"].values
+    # Create all data upfront
+    data = {}
+    # Add boolean columns
+    for col in existing_status_cols:
+        data[col] = df[col].isin(markers_set)
+    # Add contratonome column
+    data["contratonome"] = df["contratonome"].values
+
+    alteration_matrix = pd.DataFrame(data)
 
     # Soma de alterações por empresa
     alteration_sums = alteration_matrix.groupby("contratonome")[existing_status_cols].sum()
@@ -347,7 +354,7 @@ def calculate_enterprise_risk_analysis(
     # Resetando index e ordenando
     result = empresa_stats.reset_index().rename(columns={"contratonome": "Empresa"})
     return result.sort_values("Taxa de Alteração (%)", ascending=False)
-    
+
 @st.cache_data
 def calculate_product_performance(dataframe, status_column_list, markers):
     """Calculate product/plan performance analysis"""
@@ -1248,7 +1255,7 @@ with tab2:
                 initial_message_tab2 += f"com {data_shape[0]} exames."
             else:  # Using filtered data
                 initial_message_tab2 += f"Estou analisando {data_shape[0]} exames **filtrados** da Aba 1 "
-                #initial_message_tab2 += f"com {available_tests_count} tipos de testes disponíveis."
+                initial_message_tab2 += f"com {available_tests_count} tipos de testes disponíveis."
             
            
             
